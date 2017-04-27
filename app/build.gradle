@@ -1,0 +1,127 @@
+apply plugin: 'com.android.application'
+
+System.setProperty("appName", "PoliceVR")
+
+allprojects {
+    repositories {
+        jcenter()
+        flatDir {
+            dirs 'src/main/libs'
+        }
+    }
+}
+
+android {
+    compileSdkVersion 21
+    buildToolsVersion "25.0.2"
+
+    buildTypes {
+        debug {
+            resValue 'string', 'app_name', System.getProperty("appName")
+        }
+        release {
+            resValue 'string', 'app_name', System.getProperty("appName")
+        }
+    }
+
+    defaultConfig {
+        minSdkVersion 19
+        targetSdkVersion 24
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            output.outputFile = new File(
+                    output.outputFile.parent,
+                    System.getProperty("appName") + ".apk")
+        }
+    }
+
+    // ignore the x86 and arm-v8 files from the google vr libraries
+    packagingOptions {
+        exclude 'lib/x86/libgvrbase.so'
+        exclude 'lib/arm64-v8a/libgvrbase.so'
+        if (!rootProject.hasProperty("ARM64")) {
+            exclude 'lib/arm64-v8a/*.so'
+        }
+    }
+}
+
+task copyOculusSignature(type: Copy) {
+    if (rootProject.hasProperty("OCULUS_SIGS_DIRECTORY")) {
+        copy {
+            from rootProject.property("OCULUS_SIGS_DIRECTORY")
+            into 'src/main/assets'
+            include 'oculussig_*'
+        }
+    }
+}
+
+preBuild {}.dependsOn copyOculusSignature
+
+if(!rootProject.hasProperty("useLocalDependencies")) {
+    rootProject.ext.useLocalDependencies=false;
+} else {
+    if(rootProject.property("useLocalDependencies").equals("true")) {
+        rootProject.ext.useLocalDependencies=true
+    } else {
+        rootProject.ext.useLocalDependencies=false
+    }
+}
+
+dependencies {
+    compile 'com.google.android.exoplayer:exoplayer:r2.3.1'
+//    compile 'com.google.android.exoplayer:exoplayer:r1.5.15'
+    if(rootProject.useLocalDependencies) {
+        compile(name: 'framework-debug', ext: 'aar')
+    } else {
+        compile 'org.gearvrf:framework:3.1.1'
+    }
+
+    if (rootProject.hasProperty("only_daydream")) {
+        if(rootProject.useLocalDependencies) {
+            compile(name: 'backend_daydream-debug', ext: 'aar')
+        } else {
+            compile 'org.gearvrf:backend_daydream:3.1.1'
+        }
+        compile(name: 'google-vr-base', ext: 'aar')
+        compile(name: 'google-vr-common', ext: 'aar')
+        compile 'com.google.protobuf.nano:protobuf-javanano:3.0.0-alpha-7'
+    } else {
+        if (rootProject.hasProperty("no_oculus")) {
+            compile(name: 'backend-debug', ext: 'aar')
+        } else { //default oculus+daydream
+            if(rootProject.useLocalDependencies) {
+                compile(name: 'backend_daydream-debug', ext: 'aar')
+                compile(name: 'backend_oculus-debug', ext: 'aar')
+            } else {
+                compile 'org.gearvrf:backend_daydream:3.1.1'
+                compile 'org.gearvrf:backend_oculus:3.1.1'
+            }
+            compile(name: 'google-vr-base', ext: 'aar')
+            compile(name: 'google-vr-common', ext: 'aar')
+            compile 'com.google.protobuf.nano:protobuf-javanano:3.0.0-alpha-7'
+        }
+    }
+}
+
+android {
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+        }
+    }
+    sourceSets.main {
+        jni.srcDirs = [] // no auto generation of Android.mk
+        jniLibs.srcDir 'libs' // pre-compiled libraries
+    }
+    compileSdkVersion 24
+    buildToolsVersion '25.0.2'
+}
+
+repositories {
+    jcenter()
+}
+
+
