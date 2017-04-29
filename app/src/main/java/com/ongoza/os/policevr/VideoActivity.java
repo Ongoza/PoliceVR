@@ -6,6 +6,7 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.MotionEvent;
 import android.view.Surface;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -41,13 +42,14 @@ import java.io.InputStream;
 
 public class VideoActivity extends GVRActivity {
     private static final String TAG = "PoliceVideo";
+    private MainActivity main;
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         android.util.Log.w(TAG, "create player");
         if (!USE_EXO_PLAYER) { videoSceneObjectPlayer = makeMediaPlayer();
         }else { videoSceneObjectPlayer = makeExoPlayer(); }
         if (null != videoSceneObjectPlayer) {
-            final MainActivity main = new MainActivity(videoSceneObjectPlayer);
+            main = new MainActivity(videoSceneObjectPlayer);
             setMain(main, "gvr.xml");}
     }
     @Override protected void onPause() { super.onPause();
@@ -63,6 +65,12 @@ public class VideoActivity extends GVRActivity {
             } else { ExoPlayer exoPlayer = (ExoPlayer) player; exoPlayer.setPlayWhenReady(true);}
         }
     }
+
+    @Override public boolean onTouchEvent(MotionEvent event) {
+        main.onTouchEvent(event);
+        return super.onTouchEvent(event);
+    }
+
     private GVRVideoSceneObjectPlayer<MediaPlayer> makeMediaPlayer() { final MediaPlayer mediaPlayer = new MediaPlayer();
         final AssetFileDescriptor afd2; AssetManager assetManager = getAssets();  String jsonFile="";
         JSONObject jVideoList;  JSONArray videoList = null;
@@ -79,22 +87,35 @@ public class VideoActivity extends GVRActivity {
                 android.util.Log.d(TAG, "Assets was found.");
                 mediaPlayer.setDataSource(afd2.getFileDescriptor(), afd2.getStartOffset(), afd2.getLength());
                 android.util.Log.d(TAG, "DataSource was set.");
-                afd2.close(); mediaPlayer.prepare();
+                afd2.close();
+                mediaPlayer.prepare();
+//                mediaPlayer.pause();
+                // PlaybackCompleted
 //            afd3 = getAssets().openFd("scenario_3.mp4");
 //            android.util.Log.d(TAG, "Assets was found.");
 //            mediaPlayer.setDataSource(afd3.getFileDescriptor(), afd3.getStartOffset(), afd3.getLength());
 //            android.util.Log.d(TAG, "DataSource was set.");
 //            afd3.close();
-//            mediaPlayer.prepare();
             } catch (IOException e) { e.printStackTrace(); finish();  android.util.Log.e(TAG, "Assets were not loaded. Stopping application!"); return null; }
         }else { android.util.Log.e(TAG, "No video for playing. Stopping application!"); }
-        mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override public void onCompletion(MediaPlayer mp) { android.util.Log.d(TAG, "End video");
-
-            }});
         mediaPlayer.setLooping(false);android.util.Log.d(TAG, "starting player.");
+        mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+           @Override public void onCompletion(MediaPlayer mp) { android.util.Log.d(TAG, "End video");
+            main.hideMovie();
+           }});
+        mediaPlayer.setOnPreparedListener (new MediaPlayer.OnPreparedListener() {
+            @Override public void onPrepared(MediaPlayer mp) {
+                android.util.Log.d(TAG, "prepared video");
+                mediaPlayer.pause();
+            }});
+
         return GVRVideoSceneObject.makePlayerInstance(mediaPlayer);
     }
+
+
+
+
+    /// does not work!!!!!
     private GVRVideoSceneObjectPlayer<SimpleExoPlayer> makeExoPlayer() {
         Handler mainHandler = new Handler();
         BandwidthMeter bandwidthMeter = new DefaultBandwidthMeter();
