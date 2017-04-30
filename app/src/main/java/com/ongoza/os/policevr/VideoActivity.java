@@ -43,7 +43,7 @@ public class VideoActivity extends GVRActivity {
     private MainActivity main;
 //    private GVRVideoSceneObjectPlayer<?> videoSceneObjectPlayer;
 //    static final boolean USE_EXO_PLAYER = false;
-    public Context context;
+//    public Context context;
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         main = new MainActivity();
