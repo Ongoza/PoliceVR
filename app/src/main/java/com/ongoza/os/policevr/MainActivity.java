@@ -1,6 +1,9 @@
 package com.ongoza.os.policevr;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Color;
 import android.view.MotionEvent;
@@ -34,7 +37,7 @@ import java.util.ArrayList;
 import java.util.Timer;
 import java.util.concurrent.Future;
 import org.gearvrf.utility.Log;
-
+import android.content.pm.PackageManager;
 
 public class MainActivity extends GVRMain {
     private static final String TAG = "PoliceVideo";
@@ -110,7 +113,8 @@ public class MainActivity extends GVRMain {
         GVRDirectLight sunLight = new GVRDirectLight(gvrContext);
         sunLight.setAmbientIntensity(0.4f, 0.4f, 0.4f, 1.0f);
         sunLight.setDiffuseIntensity(0.6f, 0.6f, 0.6f, 1.0f);
-        mMenuItem = makeItemMenuTxt(gvrContext, "Exit", 0f, -0.8f, 0f); scene.addSceneObject(mMenuItem);
+        mMenuItem = makeItemMenuTxt(gvrContext, "Exit", 0f, -0.8f, 0f,1f); mMenuItem.getTransform().rotateByAxis(270f,1f,0f,0f); scene.addSceneObject(mMenuItem);
+        GVRTextViewSceneObject mMenuItemReset = makeItemMenuTxt(gvrContext, "Restart", -1f, -0.8f, 0f, 2f); mMenuItemReset.getTransform().rotateByAxis(90f,0f,1f,0f); scene.addSceneObject(mMenuItemReset);
         scene.getEventReceiver().addListener(mPickHandler);
         mPicker = new GVRPicker(gvrContext, scene);
     }
@@ -133,14 +137,19 @@ public class MainActivity extends GVRMain {
 
     private void stopMovie(){
         MovieStoped = true;
-        mMovieManager.getMediaPlayer().stop();
         mMenuItem.getTransform().setPositionX(0f);
-        scene.getMainCameraRig().getTransform().setPositionX(0f);}
+        scene.getMainCameraRig().getTransform().setPositionX(0f);
+        mMovieManager.stopPlayer();
+        mMovieManager = null;
+//        doRestart(mContext);
+    }
 
     private void startMovie(String fileName){
         Log.w(TAG, "fileName="+fileName);
+
         if(!fileName.equals("")){
-            mMovieManager = null;
+            if(mMovieManager!=null){Log.w(TAG, "stop video on new");
+                mMovieManager.stopPlayer();mMovieManager = null;}
             mVideo = null;
             mMovieManager = new MovieManager(gContext,fileName);
             GVRSphereSceneObject sphere = new GVRSphereSceneObject(gContext, 72, 144, false);
@@ -231,15 +240,14 @@ public class MainActivity extends GVRMain {
             default: Log.w(TAG, "switch break"); break;}
     }
 
-    private GVRTextViewSceneObject makeItemMenuTxt(GVRContext context, String name, float xPos, float yPos, float zPos){
-        GVRTextViewSceneObject item = new GVRTextViewSceneObject(context, 1, 0.5f, name);
+    private GVRTextViewSceneObject makeItemMenuTxt(GVRContext context, String name, float xPos, float yPos, float zPos, float xSize){
+        GVRTextViewSceneObject item = new GVRTextViewSceneObject(context, xSize, 0.5f, name);
         GVRSphereCollider collider = new GVRSphereCollider(context);
         collider.setRadius(0.3f);
         item.attachComponent(collider);
         GVRRenderData rdata = item.getRenderData();
         item.setName(menuItemId+name);
         item.getTransform().setPosition(xPos, yPos, zPos);
-        item.getTransform().rotateByAxis(270f,1f,0f,0f);
         item.setTextColor(Color.argb(200,200,200,200));
         item.setBackgroundColor(Color.argb(150,0,200,50));
        // item.getRenderData().getMaterial().setOpacity(0.5f);
@@ -257,6 +265,7 @@ public class MainActivity extends GVRMain {
                 }else{
                     Log.w(TAG, "menuAction stop movie");
                     stopMovie();} break;
+            case "Restart": doRestart(mContext);
             default: break;
         }}
 
@@ -284,6 +293,20 @@ public class MainActivity extends GVRMain {
         return environment;
     }
 
+    public static void doRestart(Context c) {
+        try {if (c != null) { PackageManager pm = c.getPackageManager();
+                if (pm != null) { Intent mStartActivity = pm.getLaunchIntentForPackage(c.getPackageName());
+                    if (mStartActivity != null) {  mStartActivity.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); int mPendingIntentId = 223344;
+                        PendingIntent mPendingIntent = PendingIntent.getActivity(c, mPendingIntentId, mStartActivity,   PendingIntent.FLAG_CANCEL_CURRENT);
+                        AlarmManager mgr = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
+                        mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 10, mPendingIntent);
+                        System.exit(0);
+                    } else {Log.e(TAG, "Was not able to restart application, mStartActivity null");}
+                } else {Log.e(TAG, "Was not able to restart application, PM null"); }
+            } else { Log.e(TAG, "Was not able to restart application, Context null"); }
+        } catch (Exception ex) { Log.e(TAG, "Was not able to restart application");}
+    }
+
     private GVRSceneObject makeItemVideo(GVRContext context, String name, float xPos, float yPos,float zPos){
         android.util.Log.w(TAG, "create item="+name+"="+String.valueOf(zPos)+"="+String.valueOf(zPos));
         GVRSceneObject item = new GVRCubeSceneObject(context,true);
@@ -307,13 +330,16 @@ public class MainActivity extends GVRMain {
 
     private  class MovieManager { private static final String TAG = "PoliceVideo";
         private MediaPlayer mMediaPlayer = null;
+        public void stopPlayer(){ if(mMediaPlayer!=null){Log.v(TAG, "Stop media player");
+            try{ mMediaPlayer.stop(); mMediaPlayer.release(); mMediaPlayer = null;
+          }catch(Exception e){ Log.e(TAG, "Failed to prepare media player"); e.printStackTrace();  mMediaPlayer = null; }}}
         private  MovieManager (GVRContext context, String fileName){
-            mMediaPlayer = new MediaPlayer(); mMediaPlayer.setLooping(false);android.util.Log.d(TAG, "starting player.");
+            mMediaPlayer = new MediaPlayer(); mMediaPlayer.reset();
+            mMediaPlayer.setLooping(false);android.util.Log.d(TAG, "starting player.");
             try {AssetFileDescriptor fileDescriptor = context.getContext().getAssets().openFd(fileName);
                 mMediaPlayer.setDataSource(fileDescriptor.getFileDescriptor(), fileDescriptor.getStartOffset(), fileDescriptor.getLength()); fileDescriptor.close();
                 mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() { @Override public void onCompletion(MediaPlayer mp) {
-                        android.util.Log.d(TAG, "End video");
-                    mp.stop(); mp.release(); stopMovie();}});
+                        android.util.Log.d(TAG, "End video");  stopMovie();}});
                 mMediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() { @Override public void onPrepared(MediaPlayer mp) { mMediaPlayer.start();}});
                 mMediaPlayer.prepare();
             }catch(IOException e){Log.e(TAG, "Failed to open the media file"); e.printStackTrace();  mMediaPlayer = null;
